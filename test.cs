@@ -270,73 +270,7 @@ namespace ThMEPEngineCore.Test
 
         }
 
-        [CommandMethod("TIANHUACAD", "THDETECT", CommandFlags.Modal)]
-        public void THDETECT()
-        {
-            using (AcadDatabase acadDatabase = AcadDatabase.Active())
-            {
-                // Detection: REST API
-                // curl http://127.0.0.1:8080/predictions/swin -T examples/image_classifier/kitten.jpg
-                //ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum)+" -score_thres 0.5");
-                ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum) + " -score_thres 0.5");
-                // Draw Box:
-                Point3d pt1 = anchor1;
-                Point3d pt2 = anchor2;
-
-                Point2d origin1 = new Point2d(Math.Min(pt1.X, pt2.X), Math.Min(pt1.Y, pt2.Y));// 左下角
-                Point2d origin2 = new Point2d(Math.Max(pt1.X, pt2.X), Math.Max(pt1.Y, pt2.Y));// 右上角
-                double width_window = Math.Abs(pt2.X - pt1.X);
-                double height_window = Math.Abs(pt2.Y - pt1.Y);
-                double ratio = height_window / width_window;
-
-                double[] papersize_array_w = { 4000, 6000, 8000, 12000, 16000, 20000, 24000, 32000, 40000, 50000 };
-                double[] papersize_array_h = { 3000, 4500, 6000, 9000, 12000, 15000, 18000, 24000, 30000, 40000 };
-                double width_img = papersize_array_w[paper_index];
-                double height_img = papersize_array_h[paper_index];
-
-                String[] classes = { "坐便器", "小便器", "蹲便器", "洗脸盆", "洗涤槽", "拖把池",  "洗衣机", "水龙头",  "淋浴房", "淋浴房-转角型", "浴缸", "淋浴器" };
-                System.IO.StreamReader file = System.IO.File.OpenText("d:\\THdetection\\label\\"+ Convert.ToString(imgFileNum)+".json");
-                JsonTextReader reader = new JsonTextReader(file);
-                JArray array = (JArray)JToken.ReadFrom(reader);
-                List<BoxAnno> boxlist = array.ToObject<List<BoxAnno>>();
-                foreach (BoxAnno box_anno in boxlist)
-                {
-                    String boxstring = "";
-                    String label = classes[box_anno.class_index];
-                    foreach (int coord in box_anno.bbox)
-                    {
-                        boxstring += Convert.ToString(coord);
-                    }
-
-                    int xmin, ymin, xmax,ymax;
-                    xmin = box_anno.bbox[0];
-                    ymax = (int)(height_img)-box_anno.bbox[1];
-                    xmax = xmin+box_anno.bbox[2];
-                    ymin = ymax-box_anno.bbox[3];
-                    double minx = xmin * measure_scale + origin1.X;
-                    double maxx= xmax* measure_scale + origin1.X;
-                    double miny = ymin * measure_scale + origin1.Y;
-                    double maxy =ymax * measure_scale + origin1.Y;
-
-                    Point2d x1 = new Point2d(minx,miny);
-                    Point2d x4 = new Point2d(maxx,maxy);
-
-                    Active.Editor.WriteLine(label);
-                    // Active.Editor.WriteLine(boxstring);
-                    Polyline poly = new Polyline(); // Draw Polyline
-                    PolylineTools.CreateRectangle(poly,x1, x4);
-                    poly.ColorIndex = 4;
-                    acadDatabase.ModelSpace.Add(poly);
-
-                    var dBText = new MText();
-                    dBText.Contents = label;
-                    dBText.Location = new Point3d((x1.X+x4.X)/2,(x1.Y+x4.Y)/2,0);
-                    dBText.Height = 40;
-                    dBText.ColorIndex = 4;
-                    acadDatabase.ModelSpace.Add(dBText);
-                }
-            }
-        }
+      
 
         [CommandMethod("TIANHUACAD", "THPRINT", CommandFlags.Modal)]
         public void THPRINT()
@@ -407,7 +341,12 @@ namespace ThMEPEngineCore.Test
                 imgFileNum = pr.Value;
                 strFileName = ImgFolder + "\\" + Convert.ToString(pr.Value);
                 String csvName= LabelFolder + "\\" + Convert.ToString(pr.Value);
-
+                if(File.Exists(strFileName+".jpg")){
+                    File.Delete(strFileName+".jpg");
+                }
+                if(File.Exists(csvName+".csv")){
+                    File.Delete(csvName+".csv");
+                }
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
                 // -- PRINT -- //
@@ -417,17 +356,11 @@ namespace ThMEPEngineCore.Test
                 Active.Editor.WriteLine("plot返回");
                 Active.Editor.WriteLine(DateTime.Now.ToString("yyyyMMdd HH:mm:ss"));
 
-                while (!File.Exists(strFileName+".jpg"))
-                {
-
-                }
+                while (!File.Exists(strFileName+".jpg")){}
                 Active.Editor.WriteLine("文件出现：");
                 Active.Editor.WriteLine(DateTime.Now.ToString("yyyyMMdd HH:mm:ss"));
                 /*
-                while (PlotFactory.ProcessPlotState != ProcessPlotState.NotPlotting)
-                {
-
-                }
+                while (PlotFactory.ProcessPlotState != ProcessPlotState.NotPlotting){}
                 */
                 stopwatch.Stop();
                 TimeSpan timespan = stopwatch.Elapsed;
