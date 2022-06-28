@@ -394,8 +394,8 @@ namespace ThMEPEngineCore.Test
             // 提取标注：每一个矩形寻找内部文字
             using (AcadDatabase acadDatabase = AcadDatabase.Active())
             {
-                double[] papersize_array_w = { 4000, 6000, 8000, 12000, 16000, 20000, 24000, 32000, 40000, 50000 };
-                double[] papersize_array_h = { 3000, 4500, 6000, 9000, 12000, 15000, 18000, 24000, 30000, 40000 };
+                double[] papersize_array_w = { 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 24000, 28000, 32000, 40000, 50000, 60000 };
+                double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000, 18000, 21000, 24000, 30000, 40000, 45000 };
                 // select a rectangle
                 Point3d pt1 = Active.Editor.GetPoint("select left down point: ").Value;
                 Point3d pt2 = Active.Editor.GetPoint("select right up point: ").Value;
@@ -407,10 +407,10 @@ namespace ThMEPEngineCore.Test
                 double height_window = Math.Abs(pt2.Y - pt1.Y);
 
                 double ratio = height_window / width_window;
-                double width_img = width_window/10;
-                double height_img = height_window/10;
+                double width_img = width_window/measure_scale;
+                double height_img = height_window/measure_scale;
                 bool find_paper = false;
-                for(int i = 0; i < 10; i++)
+                for(int i = 0; i < 15; i++)
                 {   // 确定打印的图纸尺寸:实际图片范围长宽需要都小于图纸长宽
                     if(width_img<=papersize_array_w[i] && height_img <= papersize_array_h[i])
                     {
@@ -423,7 +423,7 @@ namespace ThMEPEngineCore.Test
                 }
                 if (!find_paper)
                 {
-                    paper_index = 9;
+                    paper_index = 14;
                     width_img = papersize_array_w[paper_index];
                     height_img = papersize_array_h[paper_index];
                 }
@@ -495,7 +495,7 @@ namespace ThMEPEngineCore.Test
                 // DETECT
                 Stopwatch stopwatch2 = new Stopwatch();
                 stopwatch2.Start();
-                ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum) + " -score_thres 0.5");
+                ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum) + " -score_thres 0.6");
                 stopwatch2.Stop();
                 timespan = stopwatch2.Elapsed;
                 Active.Editor.WriteLine(timespan.TotalSeconds);
