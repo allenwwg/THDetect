@@ -51,9 +51,9 @@ namespace ThMEPEngineCore.Test
             //
         }
 
-        public class CocoAnno
+        public class CsvAnnoItem
         {
-            // anno in .csv
+            // anno in .csv：将cad标注信息写到csv文件
             public int boxid;
             public int xmin;
             public int ymin;
@@ -62,10 +62,11 @@ namespace ThMEPEngineCore.Test
             public String label;
             public bool isMultiple;
             public int paperIndex;
+            public double rotation; // 旋转角度
         }
-        public class BoxAnno
+        public class JsonBoxAnnoItem
         {
-            // anno in .json
+            // anno in .json：从json文件中读取每个标注的信息
             public int box_id { get; set; }
             public int class_index { get; set; }
             public String class_name { get; set; }
@@ -74,7 +75,7 @@ namespace ThMEPEngineCore.Test
         }
         public class AnnoListForOneImg
         {
-            public List<CocoAnno> AnnoList { get; set; }
+            public List<CsvAnnoItem> AnnoList { get; set; }
         }
         public bool ExportAnno2CSV(String FileName, AnnoListForOneImg detail)
         {
@@ -147,7 +148,7 @@ namespace ThMEPEngineCore.Test
                     allentity.Add(acadDatabase.Element<Polyline>(objId));
                 }
 
-                List<CocoAnno> annotation_list = new List<CocoAnno>();
+                List<CsvAnnoItem> annotation_list = new List<CsvAnnoItem>();
 
                 TypedValue[] tvs = new TypedValue[]
                 {
@@ -168,7 +169,7 @@ namespace ThMEPEngineCore.Test
 
                 foreach (Polyline rec in allentity)
                 {
-                    CocoAnno temp_anno = new CocoAnno();
+                    CsvAnnoItem temp_anno = new CsvAnnoItem();
                     int numofv = rec.NumberOfVertices;
                     if (numofv < 4) continue;
                     Point2d v1 = rec.GetPoint2dAt(0);// box左上角[minx,maxy]
@@ -253,12 +254,14 @@ namespace ThMEPEngineCore.Test
             p.StartInfo.RedirectStandardInput = true;//接受来自调用程序的输入信息
             p.StartInfo.RedirectStandardOutput = true;//由调用程序获取输出信息
             p.StartInfo.RedirectStandardError = true;//重定向标准错误输出
-            p.StartInfo.CreateNoWindow = true;//不显示程序窗口
+            p.StartInfo.CreateNoWindow = false;//不显示程序窗口
             p.Start();//启动程序
-
+            p.StandardInput.WriteLine(@"echo %time%");
             p.StandardInput.WriteLine("activate openmmlab");
+            p.StandardInput.WriteLine(@"echo %time%");
             p.StandardInput.WriteLine("cd ../..");
             p.StandardInput.WriteLine("d:");
+            p.StandardInput.WriteLine(@"echo %time%");
             p.StandardInput.WriteLine("cd D:\\ProgramData\\Anaconda3\\mmdetection\\myutils");
 
             p.StandardInput.WriteLine(command);
@@ -270,7 +273,73 @@ namespace ThMEPEngineCore.Test
 
         }
 
-      
+        [CommandMethod("TIANHUACAD", "THDETECT", CommandFlags.Modal)]
+        public void THDETECT()
+        {
+            using (AcadDatabase acadDatabase = AcadDatabase.Active())
+            {
+                // Detection: REST API
+                // curl http://127.0.0.1:8080/predictions/swin -T examples/image_classifier/kitten.jpg
+                //ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum)+" -score_thres 0.5");
+                ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum) + " -score_thres 0.5");
+                // Draw Box:
+                Point3d pt1 = anchor1;
+                Point3d pt2 = anchor2;
+
+                Point2d origin1 = new Point2d(Math.Min(pt1.X, pt2.X), Math.Min(pt1.Y, pt2.Y));// 左下角
+                Point2d origin2 = new Point2d(Math.Max(pt1.X, pt2.X), Math.Max(pt1.Y, pt2.Y));// 右上角
+                double width_window = Math.Abs(pt2.X - pt1.X);
+                double height_window = Math.Abs(pt2.Y - pt1.Y);
+                double ratio = height_window / width_window;
+
+                double[] papersize_array_w = { 4000, 6000, 8000, 12000, 16000, 20000, 24000, 32000, 40000, 50000 };
+                double[] papersize_array_h = { 3000, 4500, 6000, 9000, 12000, 15000, 18000, 24000, 30000, 40000 };
+                double width_img = papersize_array_w[paper_index];
+                double height_img = papersize_array_h[paper_index];
+
+                String[] classes = { "坐便器", "小便器", "蹲便器", "洗脸盆", "洗涤槽", "拖把池",  "洗衣机", "水龙头",  "淋浴房", "淋浴房-转角型", "浴缸", "淋浴器" };
+                System.IO.StreamReader file = System.IO.File.OpenText("d:\\THdetection\\label\\"+ Convert.ToString(imgFileNum)+".json");
+                JsonTextReader reader = new JsonTextReader(file);
+                JArray array = (JArray)JToken.ReadFrom(reader);
+                List<JsonBoxAnnoItem> boxlist = array.ToObject<List<JsonBoxAnnoItem>>();
+                foreach (JsonBoxAnnoItem box_anno in boxlist)
+                {
+                    String boxstring = "";
+                    String label = classes[box_anno.class_index];
+                    foreach (int coord in box_anno.bbox)
+                    {
+                        boxstring += Convert.ToString(coord);
+                    }
+
+                    int xmin, ymin, xmax,ymax;
+                    xmin = box_anno.bbox[0];
+                    ymax = (int)(height_img)-box_anno.bbox[1];
+                    xmax = xmin+box_anno.bbox[2];
+                    ymin = ymax-box_anno.bbox[3];
+                    double minx = xmin * measure_scale + origin1.X;
+                    double maxx= xmax* measure_scale + origin1.X;
+                    double miny = ymin * measure_scale + origin1.Y;
+                    double maxy =ymax * measure_scale + origin1.Y;
+
+                    Point2d x1 = new Point2d(minx,miny);
+                    Point2d x4 = new Point2d(maxx,maxy);
+
+                    Active.Editor.WriteLine(label);
+                    // Active.Editor.WriteLine(boxstring);
+                    Polyline poly = new Polyline(); // Draw Polyline
+                    PolylineTools.CreateRectangle(poly,x1, x4);
+                    poly.ColorIndex = 4;
+                    acadDatabase.ModelSpace.Add(poly);
+
+                    var dBText = new MText();
+                    dBText.Contents = label;
+                    dBText.Location = new Point3d((x1.X+x4.X)/2,(x1.Y+x4.Y)/2,0);
+                    dBText.Height = 40;
+                    dBText.ColorIndex = 4;
+                    acadDatabase.ModelSpace.Add(dBText);
+                }
+            }
+        }
 
         [CommandMethod("TIANHUACAD", "THPRINT", CommandFlags.Modal)]
         public void THPRINT()
@@ -341,11 +410,17 @@ namespace ThMEPEngineCore.Test
                 imgFileNum = pr.Value;
                 strFileName = ImgFolder + "\\" + Convert.ToString(pr.Value);
                 String csvName= LabelFolder + "\\" + Convert.ToString(pr.Value);
-                if(File.Exists(strFileName+".jpg")){
-                    File.Delete(strFileName+".jpg");
+                if(File.Exists(strFileName + ".jpg"))
+                {
+                    File.Delete(strFileName + ".jpg");
                 }
-                if(File.Exists(csvName+".csv")){
-                    File.Delete(csvName+".csv");
+                if (File.Exists(csvName + ".csv"))
+                {
+                    File.Delete(csvName + ".csv");
+                }
+                if (File.Exists(csvName + ".json"))
+                {
+                    File.Delete(csvName + ".json");
                 }
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
@@ -356,7 +431,7 @@ namespace ThMEPEngineCore.Test
                 Active.Editor.WriteLine("plot返回");
                 Active.Editor.WriteLine(DateTime.Now.ToString("yyyyMMdd HH:mm:ss"));
 
-                while (!File.Exists(strFileName+".jpg")){}
+                while (!File.Exists(strFileName + ".jpg")) { }
                 Active.Editor.WriteLine("文件出现：");
                 Active.Editor.WriteLine(DateTime.Now.ToString("yyyyMMdd HH:mm:ss"));
                 /*
@@ -387,8 +462,8 @@ namespace ThMEPEngineCore.Test
                 System.IO.StreamReader file = System.IO.File.OpenText("d:\\THdetection\\label\\" + Convert.ToString(imgFileNum) + ".json");
                 JsonTextReader reader = new JsonTextReader(file);
                 JArray array = (JArray)JToken.ReadFrom(reader);
-                List<BoxAnno> boxlist = array.ToObject<List<BoxAnno>>();
-                foreach (BoxAnno box_anno in boxlist)
+                List<JsonBoxAnnoItem> boxlist = array.ToObject<List<JsonBoxAnnoItem>>();
+                foreach (JsonBoxAnnoItem box_anno in boxlist)
                 {
                     String boxstring = "";
                     String label = classes[box_anno.class_index];
