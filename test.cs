@@ -38,7 +38,7 @@ namespace ThMEPEngineCore.Test
     {
         public Point3d anchor1; // 打印选取的锚点1：左下角
         public Point3d anchor2; // 打印选取的锚点2:右上角
-        public double measure_scale = 10;   // 缩放比例
+        public double measure_scale = 4;   // 缩放比例
         public int paper_index = 0; // 当前打印的图纸尺寸index[0,5]
         public int imgFileNum = 0;  // 当前打印的图纸名称
         public void Initialize()
@@ -63,6 +63,7 @@ namespace ThMEPEngineCore.Test
             public bool isMultiple;
             public int paperIndex;
             public double rotation; // 旋转角度
+            public List<int> coords;    // 用于旋转框的加强训练
         }
         public class JsonBoxAnnoItem
         {
@@ -85,7 +86,7 @@ namespace ThMEPEngineCore.Test
                 StringBuilder strColu = new StringBuilder();
                 StringBuilder strValue = new StringBuilder();
                 StreamWriter sw = new StreamWriter(new FileStream(FileName, FileMode.CreateNew), Encoding.GetEncoding("GB2312"));
-                strColu.Append("Label,Xmin,Ymin,Width,Height,isMultiple,paperIndex");
+                strColu.Append("Label,Xmin,Ymin,Width,Height,isMultiple,paperIndex,Rotation,Coords");
                 sw.WriteLine(strColu);
                 foreach (var dr in annoList)
                 {
@@ -96,7 +97,12 @@ namespace ThMEPEngineCore.Test
                     strValue.Append(dr.width + ",");
                     strValue.Append(dr.height + ",");
                     strValue.Append(dr.isMultiple + ",");
-                    strValue.Append(dr.paperIndex);
+                    strValue.Append(dr.paperIndex + "," );
+                    strValue.Append(dr.rotation + ",");
+                    foreach (int coord in dr.coords)
+                    {
+                        strValue.Append(coord + " ");
+                    }
                     sw.WriteLine(strValue);
                 }
                 sw.Close();
@@ -107,6 +113,23 @@ namespace ThMEPEngineCore.Test
                 return false;
             }
         }
+        
+        private int UCSCoordsToImg(double value,double originX,double originY,double height_img,bool isX)
+        {
+            // 转为图像空间的坐标（y方向要变一下）
+            double res = 0;
+            if (isX)
+            {
+                res = (value - originX) / measure_scale;
+            }
+            else
+            {
+                res = (value - originY) / measure_scale;
+                res = height_img - res;
+            }
+            return (int)res;
+        }
+        
         public void getBoxandText(Point3d pt1, Point3d pt2, String csvName)
         {
             // 构建数据集：搜索所有标注
@@ -123,8 +146,8 @@ namespace ThMEPEngineCore.Test
                 double height_window = Math.Abs(pt2.Y - pt1.Y);//window长宽不变，变的是img
                 double ratio = height_window / width_window;
 
-                double[] papersize_array_w = { 4000, 6000, 8000, 12000, 16000, 20000, 24000, 32000, 40000, 50000 };
-                double[] papersize_array_h = { 3000, 4500, 6000, 9000, 12000, 15000, 18000, 24000, 30000, 40000 };
+                double[] papersize_array_w = { 4000, 6000, 8000, 10000,12000, 14000,16000, 18000,20000, 24000, 28000,32000, 40000, 50000,60000 };
+                double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500,15000, 18000, 21000,24000, 30000, 40000,45000 };
                 double width_img = papersize_array_w[paper_index];
                 double height_img = papersize_array_h[paper_index];
 
@@ -170,15 +193,36 @@ namespace ThMEPEngineCore.Test
                 foreach (Polyline rec in allentity)
                 {
                     CsvAnnoItem temp_anno = new CsvAnnoItem();
+                    temp_anno.coords = new List<int>();
                     int numofv = rec.NumberOfVertices;
                     if (numofv < 4) continue;
                     Point2d v1 = rec.GetPoint2dAt(0);// box左上角[minx,maxy]
                     Point2d v2 = rec.GetPoint2dAt(0);// box右下角[maxx,miny]
+                    
                     double minx, miny, maxx, maxy;
                     minx = v1.X; maxy = v1.Y; maxx = v2.X; miny = v2.Y;
+                    double longest = 0;
+                    temp_anno.rotation = 0;
                     for (int i = 0; i < numofv; i++)
                     {
                         Point2d temppoint = rec.GetPoint2dAt(i);
+                        SegmentType segType = rec.GetSegmentType(i);
+                        if (segType == 0)
+                        {
+                            LineSegment2d lineseg = rec.GetLineSegment2dAt(i);
+
+                            if (lineseg.Length > longest && lineseg.StartPoint.Y <= lineseg.EndPoint.Y)
+                            {
+                                longest = lineseg.Length;
+                                double delta_x = lineseg.EndPoint.X - lineseg.StartPoint.X;
+                                double delta_y = lineseg.EndPoint.Y - lineseg.StartPoint.Y;
+                                temp_anno.rotation = (int)(Math.Acos(delta_x / Math.Sqrt(delta_x * delta_x + delta_y * delta_y)) / 3.14 * 180);
+                            }
+                        }
+
+
+                        temp_anno.coords.Add(UCSCoordsToImg(temppoint.X, origin1.X, origin1.Y, height_img, true));
+                        temp_anno.coords.Add(UCSCoordsToImg(temppoint.Y, origin1.X, origin1.Y, height_img, false));
                         minx = Math.Min(temppoint.X, minx);
                         maxx = Math.Max(temppoint.X, maxx);
                         maxy = Math.Max(temppoint.Y, maxy);
@@ -292,8 +336,8 @@ namespace ThMEPEngineCore.Test
                 double height_window = Math.Abs(pt2.Y - pt1.Y);
                 double ratio = height_window / width_window;
 
-                double[] papersize_array_w = { 4000, 6000, 8000, 12000, 16000, 20000, 24000, 32000, 40000, 50000 };
-                double[] papersize_array_h = { 3000, 4500, 6000, 9000, 12000, 15000, 18000, 24000, 30000, 40000 };
+                double[] papersize_array_w = { 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 24000, 28000, 32000, 40000, 50000, 60000 };
+                double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000, 18000, 21000, 24000, 30000, 40000, 45000 };
                 double width_img = papersize_array_w[paper_index];
                 double height_img = papersize_array_h[paper_index];
 
@@ -518,7 +562,7 @@ namespace ThMEPEngineCore.Test
             Extents2d exWin = new Extents2d(pStart, pEnd);
             return exWin;
         }
-        private string PrintJPG(Point3d objStart, Point3d objEnd, string strPrintName, string strStyleName,string strImgName,int PaperSizeIndex)
+        public string PrintJPG(Point3d objStart, Point3d objEnd, string strPrintName, string strStyleName,string strImgName,int PaperSizeIndex)
         {
             // 打开文档数据库
             Document acDoc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
@@ -558,7 +602,9 @@ namespace ThMEPEngineCore.Test
 
                 // FIXME: Set the plot scale：待修正
                 acPlSetVdr.SetUseStandardScale(acPlSet, true);
-                acPlSetVdr.SetStdScaleType(acPlSet, StdScaleType.StdScale1To10);
+                StdScaleType stype = (StdScaleType)18;  // 1To4
+
+                acPlSetVdr.SetStdScaleType(acPlSet, stype);
 
                 // Center the plot
                 acPlSetVdr.SetPlotCentered(acPlSet, false);
@@ -580,19 +626,25 @@ namespace ThMEPEngineCore.Test
                     Active.Editor.WriteLine(canonmedia);
                     Console.WriteLine(canonmedia);
                 }
-                
+                double[] papersize_array_w = { 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 24000, 28000, 32000, 40000, 50000, 60000 };
+                double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000, 18000, 21000, 24000, 30000, 40000, 45000 };
                 String[] media_array =
                 {
-                    "UserDefinedRaster (4000.00 x 3000.00像素)",  //0
-                    "UserDefinedRaster (6000.00 x 4500.00像素)",  //0
-                    "UserDefinedRaster (8000.00 x 6000.00像素)",      //1 
-                    "UserDefinedRaster (12000.00 x 9000.00像素)",     //2
-                    "UserDefinedRaster (16000.00 x 12000.00像素)",    //3
-                    "UserDefinedRaster (20000.00 x 15000.00像素)",    //4
-                    "UserDefinedRaster (24000.00 x 18000.00像素)",    //5
-                    "UserDefinedRaster (32000.00 x 24000.00像素)",    //6
-                    "UserDefinedRaster (40000.00 x 30000.00像素)",    //7
-                    "UserDefinedRaster (50000.00 x 40000.00像素)"     //8
+                    "UserDefinedRaster (4000.00 x 3000.00Pixels)",  //0
+                    "UserDefinedRaster (6000.00 x 4500.00Pixels)",  //0
+                    "UserDefinedRaster (8000.00 x 6000.00Pixels)",      //1 
+                    "UserDefinedRaster (10000.00 x 7500.00Pixels)",      //new
+                    "UserDefinedRaster (12000.00 x 9000.00Pixels)",     //2
+                    "UserDefinedRaster (14000.00 x 10500.00Pixels)",      //new 
+                    "UserDefinedRaster (16000.00 x 12000.00Pixels)",    //3
+                    "UserDefinedRaster (18000.00 x 13500.00Pixels)",      //new
+                    "UserDefinedRaster (20000.00 x 15000.00Pixels)",    //4
+                    "UserDefinedRaster (24000.00 x 18000.00Pixels)",    //5
+                    "UserDefinedRaster (28000.00 x 21000.00Pixels)",      //new
+                    "UserDefinedRaster (32000.00 x 24000.00Pixels)",    //6
+                    "UserDefinedRaster (40000.00 x 30000.00Pixels)",    //7
+                    "UserDefinedRaster (50000.00 x 40000.00Pixels)",     //8
+                    "UserDefinedRaster (60000.00 x 45000.00Pixels)"      //new
                 };
                 Active.Editor.WriteLine(paper_index);
                 String localmedia = media_array[PaperSizeIndex];
@@ -644,11 +696,11 @@ namespace ThMEPEngineCore.Test
                             acPlProgDlg.LowerPlotProgressRange = 0;
                             acPlProgDlg.UpperPlotProgressRange = 100;
                             acPlProgDlg.PlotProgressPos = 0;
-
+                            Active.Editor.WriteLine(PlotFactory.ProcessPlotState);
                             // Display the Progress dialog
                             acPlProgDlg.OnBeginPlot();
                             acPlProgDlg.IsVisible = true;
-
+                            Active.Editor.WriteLine(PlotFactory.ProcessPlotState);
                             // Start to plot the layout
                             acPlEng.BeginPlot(acPlProgDlg, null);
 
@@ -683,6 +735,7 @@ namespace ThMEPEngineCore.Test
                                               null);
 
                             acPlEng.BeginGenerateGraphics(null);
+                            Active.Editor.WriteLine(PlotFactory.ProcessPlotState);
                             acPlEng.EndGenerateGraphics(null);
 
                             // Finish plotting the sheet/layout
@@ -692,11 +745,16 @@ namespace ThMEPEngineCore.Test
 
                             // Finish plotting the document
                             acPlEng.EndDocument(null);
-
+                            Active.Editor.WriteLine("end doc" );
+                            Active.Editor.WriteLine(PlotFactory.ProcessPlotState);
                             // Finish the plot
                             acPlProgDlg.PlotProgressPos = 100;
                             acPlProgDlg.OnEndPlot();
                             acPlEng.EndPlot(null);
+
+                            Active.Editor.WriteLine(PlotFactory.ProcessPlotState);
+                            acPlEng.Destroy();
+                            acPlProgDlg.Destroy();
                         }
                     }
                 }
