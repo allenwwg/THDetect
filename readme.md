@@ -10,7 +10,7 @@
   - anno2json.py 划分后将训练集所有标注文件转为一个json文件，验证集相同（coco数据集标注格式）
   - csv2dota.py 将每个物件图像提取出来转为dota数据集的标注格式，并进行离线旋转增强
 - inference.py 用于识别
-    需要修改一下config_file、model_path
+    需要修改一下config_file、checkpoint_file、config_rot_file、checkpoint_rot_file
 - test.cs c#创建数据集、交互 【！还需要修改一下解析json文件】
 
 ## 数据集处理
