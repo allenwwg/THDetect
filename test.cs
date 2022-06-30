@@ -34,6 +34,7 @@ using System.Diagnostics;
 
 namespace ThMEPEngineCore.Test
 {
+    delegate string PrintJPG_dele(Point3d objStart, Point3d objEnd, string strPrintName, string strStyleName, string strImgName, int PaperSizeIndex);
     public class ThMEPEngineCoreTestApp : IExtensionApplication
     {
         public Point3d anchor1; // 打印选取的锚点1：左下角
@@ -41,6 +42,7 @@ namespace ThMEPEngineCore.Test
         public double measure_scale = 4;   // 缩放比例
         public int paper_index = 0; // 当前打印的图纸尺寸index[0,5]
         public int imgFileNum = 0;  // 当前打印的图纸名称
+
         public void Initialize()
         {
             //
@@ -62,8 +64,8 @@ namespace ThMEPEngineCore.Test
             public String label;
             public bool isMultiple;
             public int paperIndex;
-            public double rotation; // 旋转角度
-            public List<int> coords;    // 用于旋转框的加强训练
+            public int rotation;
+            public List<int> coords;
         }
         public class JsonBoxAnnoItem
         {
@@ -81,7 +83,8 @@ namespace ThMEPEngineCore.Test
         public bool ExportAnno2CSV(String FileName, AnnoListForOneImg detail)
         {
             // 构建数据集：write annotations into a csv
-            try { 
+            try
+            {
                 var annoList = detail.AnnoList;
                 StringBuilder strColu = new StringBuilder();
                 StringBuilder strValue = new StringBuilder();
@@ -97,7 +100,7 @@ namespace ThMEPEngineCore.Test
                     strValue.Append(dr.width + ",");
                     strValue.Append(dr.height + ",");
                     strValue.Append(dr.isMultiple + ",");
-                    strValue.Append(dr.paperIndex + "," );
+                    strValue.Append(dr.paperIndex + ",");
                     strValue.Append(dr.rotation + ",");
                     foreach (int coord in dr.coords)
                     {
@@ -113,10 +116,8 @@ namespace ThMEPEngineCore.Test
                 return false;
             }
         }
-        
-        private int UCSCoordsToImg(double value,double originX,double originY,double height_img,bool isX)
+        private int UCSCoordsToImg(double value, double originX, double originY, double height_img, bool isX)
         {
-            // 转为图像空间的坐标（y方向要变一下）
             double res = 0;
             if (isX)
             {
@@ -129,7 +130,6 @@ namespace ThMEPEngineCore.Test
             }
             return (int)res;
         }
-        
         public void getBoxandText(Point3d pt1, Point3d pt2, String csvName)
         {
             // 构建数据集：搜索所有标注
@@ -146,10 +146,11 @@ namespace ThMEPEngineCore.Test
                 double height_window = Math.Abs(pt2.Y - pt1.Y);//window长宽不变，变的是img
                 double ratio = height_window / width_window;
 
-                double[] papersize_array_w = { 4000, 6000, 8000, 10000,12000, 14000,16000, 18000,20000, 24000, 28000,32000, 40000, 50000,60000 };
-                double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500,15000, 18000, 21000,24000, 30000, 40000,45000 };
+                double[] papersize_array_w = { 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 24000, 28000, 32000, 40000, 50000, 60000 };
+                double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000, 18000, 21000, 24000, 30000, 40000, 45000 };
                 double width_img = papersize_array_w[paper_index];
                 double height_img = papersize_array_h[paper_index];
+
 
                 // 获取polyline
                 TypedValue[] recType = new TypedValue[]
@@ -198,7 +199,7 @@ namespace ThMEPEngineCore.Test
                     if (numofv < 4) continue;
                     Point2d v1 = rec.GetPoint2dAt(0);// box左上角[minx,maxy]
                     Point2d v2 = rec.GetPoint2dAt(0);// box右下角[maxx,miny]
-                    
+
                     double minx, miny, maxx, maxy;
                     minx = v1.X; maxy = v1.Y; maxx = v2.X; miny = v2.Y;
                     double longest = 0;
@@ -262,9 +263,9 @@ namespace ThMEPEngineCore.Test
                     }
 
                     // DONE:box记录
-                    double x1 = (minx - origin1.X) / measure_scale;
+                    double x1 = (minx - origin1.X) / measure_scale;//左上角
                     double y1 = (maxy - origin1.Y) / measure_scale;
-                    double x2 = (maxx - origin1.X) / measure_scale;
+                    double x2 = (maxx - origin1.X) / measure_scale;//右下角
                     double y2 = (miny - origin1.Y) / measure_scale;
 
                     temp_anno.width = (int)Math.Abs(x2 - x1);
@@ -298,34 +299,30 @@ namespace ThMEPEngineCore.Test
             p.StartInfo.RedirectStandardInput = true;//接受来自调用程序的输入信息
             p.StartInfo.RedirectStandardOutput = true;//由调用程序获取输出信息
             p.StartInfo.RedirectStandardError = true;//重定向标准错误输出
-            p.StartInfo.CreateNoWindow = false;//不显示程序窗口
+            p.StartInfo.CreateNoWindow = true;//不显示程序窗口
             p.Start();//启动程序
-            p.StandardInput.WriteLine(@"echo %time%");
             p.StandardInput.WriteLine("activate openmmlab");
-            p.StandardInput.WriteLine(@"echo %time%");
             p.StandardInput.WriteLine("cd ../..");
             p.StandardInput.WriteLine("d:");
-            p.StandardInput.WriteLine(@"echo %time%");
-            p.StandardInput.WriteLine("cd D:\\ProgramData\\Anaconda3\\mmdetection\\myutils");
+            p.StandardInput.WriteLine("cd D:\\ProgramData\\Anaconda3\\mmdetection\\myutils");   // FIXME: windows修改路径
 
             p.StandardInput.WriteLine(command);
 
             p.StandardInput.WriteLine("exit");
-            
+
             p.WaitForExit();
             p.Close();
 
         }
-
-        [CommandMethod("TIANHUACAD", "THDETECT", CommandFlags.Modal)]
-        public void THDETECT()
+        [CommandMethod("TIANHUACAD", "THDETECTTEST", CommandFlags.Modal)]
+        public void THDETECTTEST()
         {
             using (AcadDatabase acadDatabase = AcadDatabase.Active())
             {
+
                 // Detection: REST API
                 // curl http://127.0.0.1:8080/predictions/swin -T examples/image_classifier/kitten.jpg
-                //ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum)+" -score_thres 0.5");
-                ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum) + " -score_thres 0.5");
+                // ExecuteCMD("D:\\ProgramData\\Anaconda3\\envs\\openmmlab\\python.exe D:\\ProgramData\\Anaconda3\\mmdetection\\myutils\\inference.py  -image_name "+Convert.ToString(imgFileNum));
                 // Draw Box:
                 Point3d pt1 = anchor1;
                 Point3d pt2 = anchor2;
@@ -341,8 +338,8 @@ namespace ThMEPEngineCore.Test
                 double width_img = papersize_array_w[paper_index];
                 double height_img = papersize_array_h[paper_index];
 
-                String[] classes = { "坐便器", "小便器", "蹲便器", "洗脸盆", "洗涤槽", "拖把池",  "洗衣机", "水龙头",  "淋浴房", "淋浴房-转角型", "浴缸", "淋浴器" };
-                System.IO.StreamReader file = System.IO.File.OpenText("d:\\THdetection\\label\\"+ Convert.ToString(imgFileNum)+".json");
+                String[] classes = { "坐便器", "小便器", "蹲便器", "洗脸盆", "洗涤槽", "拖把池", "洗衣机", "地漏", "淋浴房", "淋浴房-转角型", "浴缸", "淋浴器" };
+                System.IO.StreamReader file = System.IO.File.OpenText("d:\\THdetection\\label\\" + Convert.ToString(imgFileNum) + ".json");
                 JsonTextReader reader = new JsonTextReader(file);
                 JArray array = (JArray)JToken.ReadFrom(reader);
                 List<JsonBoxAnnoItem> boxlist = array.ToObject<List<JsonBoxAnnoItem>>();
@@ -350,43 +347,61 @@ namespace ThMEPEngineCore.Test
                 {
                     String boxstring = "";
                     String label = classes[box_anno.class_index];
+                    /*
                     foreach (int coord in box_anno.bbox)
                     {
                         boxstring += Convert.ToString(coord);
                     }
-
-                    int xmin, ymin, xmax,ymax;
+                    */
+                    Point2dCollection point2Ds = new Point2dCollection();
+                    double[] textLoc = { 0, 0 };
+                    for (int i = 0; i < 8; i += 2)
+                    {
+                        int pt_X = box_anno.bbox[i];
+                        int pt_Y = (int)(height_img) - box_anno.bbox[i + 1];
+                        Point2d tmp_pt2d = new Point2d(pt_X * measure_scale + origin1.X, pt_Y * measure_scale + origin1.Y);
+                        textLoc[0] += tmp_pt2d.X;
+                        textLoc[1] += tmp_pt2d.Y;
+                        point2Ds.Add(tmp_pt2d);
+                    }
+                    int pt_X0 = box_anno.bbox[0];
+                    int pt_Y0 = (int)(height_img) - box_anno.bbox[1];
+                    Point2d tmp_pt2d0 = new Point2d(pt_X0 * measure_scale + origin1.X, pt_Y0 * measure_scale + origin1.Y);
+                    point2Ds.Add(tmp_pt2d0);
+                    /*
+                    int xmin, ymin, xmax, ymax;
                     xmin = box_anno.bbox[0];
-                    ymax = (int)(height_img)-box_anno.bbox[1];
-                    xmax = xmin+box_anno.bbox[2];
-                    ymin = ymax-box_anno.bbox[3];
+                    ymax = (int)(height_img) - box_anno.bbox[1];
+                    xmax = xmin + box_anno.bbox[2];
+                    ymin = ymax - box_anno.bbox[3];
                     double minx = xmin * measure_scale + origin1.X;
-                    double maxx= xmax* measure_scale + origin1.X;
+                    double maxx = xmax * measure_scale + origin1.X;
                     double miny = ymin * measure_scale + origin1.Y;
-                    double maxy =ymax * measure_scale + origin1.Y;
+                    double maxy = ymax * measure_scale + origin1.Y;
 
-                    Point2d x1 = new Point2d(minx,miny);
-                    Point2d x4 = new Point2d(maxx,maxy);
-
+                    Point2d x1 = new Point2d(minx, miny);
+                    Point2d x4 = new Point2d(maxx, maxy);
+                    */
                     Active.Editor.WriteLine(label);
                     // Active.Editor.WriteLine(boxstring);
                     Polyline poly = new Polyline(); // Draw Polyline
-                    PolylineTools.CreateRectangle(poly,x1, x4);
+                    PolylineTools.CreatePolyline(poly, point2Ds);
                     poly.ColorIndex = 4;
                     acadDatabase.ModelSpace.Add(poly);
 
                     var dBText = new MText();
                     dBText.Contents = label;
-                    dBText.Location = new Point3d((x1.X+x4.X)/2,(x1.Y+x4.Y)/2,0);
+                    dBText.Location = new Point3d(textLoc[0] / 4, textLoc[1] / 4, 0);
                     dBText.Height = 40;
+                    dBText.TextHeight = 40;
                     dBText.ColorIndex = 4;
                     acadDatabase.ModelSpace.Add(dBText);
                 }
             }
         }
 
-        [CommandMethod("TIANHUACAD", "THPRINT", CommandFlags.Modal)]
-        public void THPRINT()
+        [CommandMethod("TIANHUACAD", "THDETECT", CommandFlags.Modal)]
+        public void THDETECT()
         {
             // 选择矩形区域
             // 打印指定区域jpg
@@ -396,23 +411,28 @@ namespace ThMEPEngineCore.Test
             {
                 double[] papersize_array_w = { 4000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000, 24000, 28000, 32000, 40000, 50000, 60000 };
                 double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000, 18000, 21000, 24000, 30000, 40000, 45000 };
+
                 // select a rectangle
-                Point3d pt1 = Active.Editor.GetPoint("select left down point: ").Value;
-                Point3d pt2 = Active.Editor.GetPoint("select right up point: ").Value;
+                Point3d pt1 = Active.Editor.GetPoint("select left down point of rotated region: ").Value;
+                Point3d pt2 = Active.Editor.GetPoint("select right up point of rotated region: ").Value;
                 anchor1 = pt1;
                 anchor2 = pt2;
                 Point2d origin1 = new Point2d(Math.Min(pt1.X, pt2.X), Math.Min(pt1.Y, pt2.Y));// 左下角
                 Point2d origin2 = new Point2d(Math.Max(pt1.X, pt2.X), Math.Max(pt1.Y, pt2.Y));// 右上角
-                double width_window = Math.Abs(pt2.X - pt1.X);
-                double height_window = Math.Abs(pt2.Y - pt1.Y);
+                //Point2d origin1_rot = origin1.TransformBy(rotM);
+                //Point2d origin2_rot = origin2.TransformBy(rotM);
+                double width_window = Math.Abs(origin2.X - origin1.X);
+                double height_window = Math.Abs(origin2.Y - origin1.Y);
 
                 double ratio = height_window / width_window;
-                double width_img = width_window/measure_scale;
-                double height_img = height_window/measure_scale;
+                double width_img = width_window / measure_scale;
+                double height_img = height_window / measure_scale;
+                Active.Editor.WriteLine(width_img);
+                Active.Editor.WriteLine(height_img);
                 bool find_paper = false;
-                for(int i = 0; i < 15; i++)
+                for (int i = 0; i < 15; i++)
                 {   // 确定打印的图纸尺寸:实际图片范围长宽需要都小于图纸长宽
-                    if(width_img<=papersize_array_w[i] && height_img <= papersize_array_h[i])
+                    if (width_img <= papersize_array_w[i] && height_img <= papersize_array_h[i])
                     {
                         paper_index = i;
                         width_img = papersize_array_w[i];
@@ -427,9 +447,9 @@ namespace ThMEPEngineCore.Test
                     width_img = papersize_array_w[paper_index];
                     height_img = papersize_array_h[paper_index];
                 }
-                
+
                 var pr = Active.Editor.GetInteger("Input a number as img name:");
-                
+
                 String RootFolder = "d:\\THdetection";
                 String ImgFolder = "d:\\THdetection\\image";
                 String LabelFolder = "d:\\THdetection\\label";
@@ -453,25 +473,18 @@ namespace ThMEPEngineCore.Test
                 }
                 imgFileNum = pr.Value;
                 strFileName = ImgFolder + "\\" + Convert.ToString(pr.Value);
-                String csvName= LabelFolder + "\\" + Convert.ToString(pr.Value);
-                if(File.Exists(strFileName + ".jpg"))
-                {
-                    File.Delete(strFileName + ".jpg");
-                }
+                String csvName = LabelFolder + "\\" + Convert.ToString(pr.Value);
                 if (File.Exists(csvName + ".csv"))
                 {
                     File.Delete(csvName + ".csv");
-                }
-                if (File.Exists(csvName + ".json"))
-                {
-                    File.Delete(csvName + ".json");
                 }
                 Stopwatch stopwatch = new Stopwatch();
                 stopwatch.Start();
                 // -- PRINT -- //
                 Active.Editor.WriteLine("启动plot");
                 Active.Editor.WriteLine(DateTime.Now.ToString("yyyyMMdd HH:mm:ss"));
-                PrintJPG(pt1, pt2, "PublishToWeb JPG.pc3", "monochrome.ctb",strFileName,paper_index);
+                PrintJPG(pt1, pt2, "PublishToWeb JPG.pc3", "monochrome.ctb", strFileName, paper_index);
+
                 Active.Editor.WriteLine("plot返回");
                 Active.Editor.WriteLine(DateTime.Now.ToString("yyyyMMdd HH:mm:ss"));
 
@@ -488,21 +501,22 @@ namespace ThMEPEngineCore.Test
                 Active.Editor.WriteLine("Print Finished!");
                 Active.Editor.WriteLine(timespan.TotalSeconds);
                 Console.WriteLine("Print Finished!");
+                //PrintJPG_dele printerDele = new PrintJPG_dele(PrintJPG);
+                //printerDele.Invoke(pt1, pt2, "PublishToWeb JPG.pc3", "monochrome.ctb", strFileName, paper_index);
 
-                // 构建数据集：
+                // FIXME:如果要构建数据集就将下面这行去注释
                 // getBoxandText(pt1, pt2, csvName);
-
                 // DETECT
                 Stopwatch stopwatch2 = new Stopwatch();
                 stopwatch2.Start();
-                ExecuteCMD("python inference.py  -image_name " + Convert.ToString(imgFileNum) + " -score_thres 0.6");
+                ExecuteCMD("python infer_test.py  --image_name " + Convert.ToString(imgFileNum) + " --score_thres 0.6");
                 stopwatch2.Stop();
                 timespan = stopwatch2.Elapsed;
                 Active.Editor.WriteLine(timespan.TotalSeconds);
                 Active.Editor.WriteLine("cmd返回");
                 Active.Editor.WriteLine(DateTime.Now.ToString("yyyyMMdd HH:mm:ss"));
                 // 画图
-                String[] classes = { "坐便器", "小便器", "蹲便器", "洗脸盆", "洗涤槽", "拖把池", "洗衣机", "水龙头", "淋浴房", "淋浴房-转角型", "浴缸", "淋浴器" };
+                String[] classes = { "坐便器", "小便器", "蹲便器", "洗脸盆", "洗涤槽", "拖把池", "洗衣机", "地漏", "淋浴房", "淋浴房-转角型", "浴缸", "淋浴器" };
                 System.IO.StreamReader file = System.IO.File.OpenText("d:\\THdetection\\label\\" + Convert.ToString(imgFileNum) + ".json");
                 JsonTextReader reader = new JsonTextReader(file);
                 JArray array = (JArray)JToken.ReadFrom(reader);
@@ -511,11 +525,28 @@ namespace ThMEPEngineCore.Test
                 {
                     String boxstring = "";
                     String label = classes[box_anno.class_index];
+                    /*
                     foreach (int coord in box_anno.bbox)
                     {
                         boxstring += Convert.ToString(coord);
                     }
-
+                    */
+                    Point2dCollection point2Ds = new Point2dCollection();
+                    double[] textLoc = { 0, 0 };
+                    for (int i = 0; i < 8; i += 2)
+                    {
+                        int pt_X = box_anno.bbox[i];
+                        int pt_Y = (int)(height_img) - box_anno.bbox[i + 1];
+                        Point2d tmp_pt2d = new Point2d(pt_X * measure_scale + origin1.X, pt_Y * measure_scale + origin1.Y);
+                        textLoc[0] += tmp_pt2d.X;
+                        textLoc[1] += tmp_pt2d.Y;
+                        point2Ds.Add(tmp_pt2d);
+                    }
+                    int pt_X0 = box_anno.bbox[0];
+                    int pt_Y0 = (int)(height_img) - box_anno.bbox[1];
+                    Point2d tmp_pt2d0 = new Point2d(pt_X0 * measure_scale + origin1.X, pt_Y0 * measure_scale + origin1.Y);
+                    point2Ds.Add(tmp_pt2d0);
+                    /*
                     int xmin, ymin, xmax, ymax;
                     xmin = box_anno.bbox[0];
                     ymax = (int)(height_img) - box_anno.bbox[1];
@@ -528,23 +559,26 @@ namespace ThMEPEngineCore.Test
 
                     Point2d x1 = new Point2d(minx, miny);
                     Point2d x4 = new Point2d(maxx, maxy);
-
+                    */
                     Active.Editor.WriteLine(label);
                     // Active.Editor.WriteLine(boxstring);
                     Polyline poly = new Polyline(); // Draw Polyline
-                    PolylineTools.CreateRectangle(poly, x1, x4);
+                    PolylineTools.CreatePolyline(poly, point2Ds);
                     poly.ColorIndex = 4;
                     acadDatabase.ModelSpace.Add(poly);
 
                     var dBText = new MText();
                     dBText.Contents = label;
-                    dBText.Location = new Point3d((x1.X + x4.X) / 2, (x1.Y + x4.Y) / 2, 0);
+                    dBText.Location = new Point3d(textLoc[0] / 4, textLoc[1] / 4, 0);
                     dBText.Height = 40;
+                    dBText.TextHeight = 40;
                     dBText.ColorIndex = 4;
                     acadDatabase.ModelSpace.Add(dBText);
+
                 }
             }
         }
+
         private Extents2d Ucs2Dcs(Point3d objStart, Point3d objEnd)
         {
 
@@ -562,7 +596,8 @@ namespace ThMEPEngineCore.Test
             Extents2d exWin = new Extents2d(pStart, pEnd);
             return exWin;
         }
-        public string PrintJPG(Point3d objStart, Point3d objEnd, string strPrintName, string strStyleName,string strImgName,int PaperSizeIndex)
+
+        public string PrintJPG(Point3d objStart, Point3d objEnd, string strPrintName, string strStyleName, string strImgName, int PaperSizeIndex)
         {
             // 打开文档数据库
             Document acDoc = Autodesk.AutoCAD.ApplicationServices.Application.DocumentManager.MdiActiveDocument;
@@ -615,11 +650,11 @@ namespace ThMEPEngineCore.Test
                 // Set the plot device to use
                 // acPlSetVdr.SetPlotConfigurationName(acPlSet, strPrintName);
 
-                var devicelist=acPlSetVdr.GetPlotDeviceList();
+                var devicelist = acPlSetVdr.GetPlotDeviceList();
 
                 acPlSetVdr.SetPlotConfigurationName(acPlSet, strPrintName, null);
                 acPlSetVdr.RefreshLists(acPlSet);
-                
+
                 var medialist = acPlSetVdr.GetCanonicalMediaNameList(acPlSet);
                 foreach (var canonmedia in medialist)
                 {
@@ -630,21 +665,21 @@ namespace ThMEPEngineCore.Test
                 double[] papersize_array_h = { 3000, 4500, 6000, 7500, 9000, 10500, 12000, 13500, 15000, 18000, 21000, 24000, 30000, 40000, 45000 };
                 String[] media_array =
                 {
-                    "UserDefinedRaster (4000.00 x 3000.00Pixels)",  //0
-                    "UserDefinedRaster (6000.00 x 4500.00Pixels)",  //0
-                    "UserDefinedRaster (8000.00 x 6000.00Pixels)",      //1 
-                    "UserDefinedRaster (10000.00 x 7500.00Pixels)",      //new
-                    "UserDefinedRaster (12000.00 x 9000.00Pixels)",     //2
-                    "UserDefinedRaster (14000.00 x 10500.00Pixels)",      //new 
-                    "UserDefinedRaster (16000.00 x 12000.00Pixels)",    //3
-                    "UserDefinedRaster (18000.00 x 13500.00Pixels)",      //new
-                    "UserDefinedRaster (20000.00 x 15000.00Pixels)",    //4
-                    "UserDefinedRaster (24000.00 x 18000.00Pixels)",    //5
-                    "UserDefinedRaster (28000.00 x 21000.00Pixels)",      //new
-                    "UserDefinedRaster (32000.00 x 24000.00Pixels)",    //6
-                    "UserDefinedRaster (40000.00 x 30000.00Pixels)",    //7
-                    "UserDefinedRaster (50000.00 x 40000.00Pixels)",     //8
-                    "UserDefinedRaster (60000.00 x 45000.00Pixels)"      //new
+                    "UserDefinedRaster (4000.00 x 3000.00像素)",  //0
+                    "UserDefinedRaster (6000.00 x 4500.00像素)",  //0
+                    "UserDefinedRaster (8000.00 x 6000.00像素)",      //1 
+                    "UserDefinedRaster (10000.00 x 7500.00像素)",      //new
+                    "UserDefinedRaster (12000.00 x 9000.00像素)",     //2
+                    "UserDefinedRaster (14000.00 x 10500.00像素)",      //new 
+                    "UserDefinedRaster (16000.00 x 12000.00像素)",    //3
+                    "UserDefinedRaster (18000.00 x 13500.00像素)",      //new
+                    "UserDefinedRaster (20000.00 x 15000.00像素)",    //4
+                    "UserDefinedRaster (24000.00 x 18000.00像素)",    //5
+                    "UserDefinedRaster (28000.00 x 21000.00像素)",      //new
+                    "UserDefinedRaster (32000.00 x 24000.00像素)",    //6
+                    "UserDefinedRaster (40000.00 x 30000.00像素)",    //7
+                    "UserDefinedRaster (50000.00 x 40000.00像素)",     //8
+                    "UserDefinedRaster (60000.00 x 45000.00像素)"      //new
                 };
                 Active.Editor.WriteLine(paper_index);
                 String localmedia = media_array[PaperSizeIndex];
@@ -745,7 +780,7 @@ namespace ThMEPEngineCore.Test
 
                             // Finish plotting the document
                             acPlEng.EndDocument(null);
-                            Active.Editor.WriteLine("end doc" );
+                            Active.Editor.WriteLine("end doc");
                             Active.Editor.WriteLine(PlotFactory.ProcessPlotState);
                             // Finish the plot
                             acPlProgDlg.PlotProgressPos = 100;
@@ -761,6 +796,6 @@ namespace ThMEPEngineCore.Test
             }
             return strFileName;
         }
- 
+
     }
 }
