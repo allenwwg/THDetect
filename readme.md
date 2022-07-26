@@ -12,7 +12,10 @@
 - inference.py 用于识别
     需要修改一下config_file、checkpoint_file、config_rot_file、checkpoint_rot_file
 - test.cs c#创建数据集、交互 【！还需要修改一下解析json文件】
-
+- parall_infer.py 用于分块识别的新版本，使用了pybind11 的c++扩展，linux上需要将acceleration.xxxx.so文件放入anaconda虚拟环境openmmlab/lib/python3.7/site-packages下面
+- acceleration c++扩展source codes
+  - acceleration.cpp
+  - PatchManager.h
 ## 数据集处理
 
 ## C#框架
