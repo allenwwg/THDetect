@@ -16,6 +16,7 @@
 - acceleration c++扩展source codes
   - acceleration.cpp
   - PatchManager.h
+  - acceleration.xxxxx.so【要用的库文件】
 ## 数据集处理
 
 ## C#框架
